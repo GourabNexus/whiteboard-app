@@ -4,7 +4,7 @@ import { socket } from "./socket";
 const Canvas = ({ roomId }) => {
   const canvasRef = useRef(null);
   const ctxRef = useRef(null);
-  const lastEmitRef = useRef(0); // ✅ FIX
+  const lastEmitRef = useRef(0);
 
   const [drawing, setDrawing] = useState(false);
   const [color, setColor] = useState("#000000");
@@ -23,9 +23,9 @@ const Canvas = ({ roomId }) => {
 
     ctxRef.current = ctx;
 
-    if (!roomId) return; // ✅ IMPORTANT
+    if (!roomId) return;
 
-    console.log("Joining room:", roomId); // ✅ debug
+    console.log("Joining room:", roomId);
     socket.emit("joinRoom", roomId);
 
     socket.on("init", (strokes) => {
@@ -43,9 +43,9 @@ const Canvas = ({ roomId }) => {
     return () => {
       socket.off("draw");
       socket.off("init");
-      socket.off("clear"); // ✅ FIX
+      socket.off("clear");
     };
-  }, [roomId]); // ✅ FIX
+  }, [roomId]);
 
   const drawStroke = ({ x0, y0, x1, y1, color, size }) => {
     const ctx = ctxRef.current;
@@ -59,12 +59,20 @@ const Canvas = ({ roomId }) => {
     ctx.closePath();
   };
 
+  const getCoords = (e) => {
+    const rect = canvasRef.current.getBoundingClientRect();
+    return {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+    };
+  };
+
   const startDrawing = (e) => {
     setDrawing(true);
-    const rect = canvasRef.current.getBoundingClientRect();
+    const { x, y } = getCoords(e);
 
-    ctxRef.current.currentX = e.clientX - rect.left;
-    ctxRef.current.currentY = e.clientY - rect.top;
+    ctxRef.current.currentX = x;
+    ctxRef.current.currentY = y;
   };
 
   const stopDrawing = () => {
@@ -76,10 +84,7 @@ const Canvas = ({ roomId }) => {
   const draw = (e) => {
     if (!drawing) return;
 
-    const rect = canvasRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
+    const { x, y } = getCoords(e);
     const ctx = ctxRef.current;
 
     if (ctx.currentX == null || ctx.currentY == null) {
@@ -96,12 +101,11 @@ const Canvas = ({ roomId }) => {
       x1: x,
       y1: y,
       color: strokeColor,
-      size: Number(brushSize), // ✅ FIX (important)
+      size: Number(brushSize),
     };
 
     drawStroke(stroke);
 
-    // ✅ FIXED throttling
     if (Date.now() - lastEmitRef.current > 10) {
       socket.emit("draw", { roomId, stroke });
       lastEmitRef.current = Date.now();
@@ -112,7 +116,6 @@ const Canvas = ({ roomId }) => {
   };
 
   const clearBoard = () => {
-    console.log("Clearing room:", roomId); // ✅ debug
     socket.emit("clear", roomId);
   };
 
@@ -137,7 +140,7 @@ const Canvas = ({ roomId }) => {
           min="1"
           max="20"
           value={brushSize}
-          onChange={(e) => setBrushSize(Number(e.target.value))} // ✅ FIX
+          onChange={(e) => setBrushSize(Number(e.target.value))}
           style={{ marginLeft: 10 }}
         />
 
@@ -152,11 +155,21 @@ const Canvas = ({ roomId }) => {
       {/* Canvas */}
       <canvas
         ref={canvasRef}
-        style={{ display: "block", backgroundColor: "white" }}
+        style={{
+          display: "block",
+          backgroundColor: "white",
+          touchAction: "none", // 🔥 important for mobile
+        }}
         onMouseDown={startDrawing}
         onMouseUp={stopDrawing}
         onMouseLeave={stopDrawing}
         onMouseMove={draw}
+        onTouchStart={(e) => startDrawing(e.touches[0])}
+        onTouchEnd={stopDrawing}
+        onTouchMove={(e) => {
+          e.preventDefault(); // 🔥 prevents scroll
+          draw(e.touches[0]);
+        }}
       />
     </>
   );
