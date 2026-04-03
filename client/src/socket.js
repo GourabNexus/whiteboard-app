@@ -1,3 +1,6 @@
 import { io } from "socket.io-client";
 
-export const socket = io("https://whiteboard-app-sikc.onrender.com");
+export const socket = io("https://whiteboard-app-sikc.onrender.com", {
+  transports: ["websocket"], // ✅ force websocket
+  withCredentials: true,
+});
