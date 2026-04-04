@@ -18,8 +18,6 @@ const Canvas = ({ roomId }) => {
 
     const ctx = canvas.getContext("2d");
     ctx.lineCap = "round";
-    ctx.lineWidth = brushSize;
-    ctx.strokeStyle = color;
 
     ctxRef.current = ctx;
 
@@ -28,7 +26,9 @@ const Canvas = ({ roomId }) => {
     console.log("Joining room:", roomId);
     socket.emit("joinRoom", roomId);
 
-    socket.on("init", (strokes) => {
+    socket.on("loadBoard", (strokes) => {
+      const ctx = ctxRef.current;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
       strokes.forEach(drawStroke);
     });
 
@@ -42,7 +42,7 @@ const Canvas = ({ roomId }) => {
 
     return () => {
       socket.off("draw");
-      socket.off("init");
+      socket.off("loadBoard");
       socket.off("clear");
     };
   }, [roomId]);
@@ -93,7 +93,7 @@ const Canvas = ({ roomId }) => {
       return;
     }
 
-    const strokeColor = isEraser ? "#FFFFFF" : color;
+    const strokeColor = isEraser ? "#ffffff" : color;
 
     const stroke = {
       x0: ctx.currentX,
@@ -121,10 +121,30 @@ const Canvas = ({ roomId }) => {
 
   return (
     <>
-      {/* Controls */}
-      <div style={{ position: "fixed", top: 10, left: 10, zIndex: 10 }}>
-        <button onClick={clearBoard}>Clear</button>
+      {/* 🔥 PREMIUM TOOLBAR */}
+      <div
+        style={{
+          position: "fixed",
+          top: "20px",
+          left: "50%",
+          transform: "translateX(-50%)",
+          display: "flex",
+          gap: "12px",
+          alignItems: "center",
+          background: "rgba(30, 30, 30, 0.9)",
+          backdropFilter: "blur(10px)",
+          padding: "10px 16px",
+          borderRadius: "16px",
+          boxShadow: "0 8px 30px rgba(0,0,0,0.3)",
+          zIndex: 1000,
+        }}
+      >
+        {/* Clear */}
+        <button onClick={clearBoard} style={btnStyle}>
+          🧹
+        </button>
 
+        {/* Color Picker */}
         <input
           type="color"
           value={color}
@@ -132,33 +152,38 @@ const Canvas = ({ roomId }) => {
             setColor(e.target.value);
             setIsEraser(false);
           }}
-          style={{ marginLeft: 10 }}
+          style={{ width: 32, height: 32, border: "none", cursor: "pointer" }}
         />
 
+        {/* Brush Size */}
         <input
           type="range"
           min="1"
           max="20"
           value={brushSize}
           onChange={(e) => setBrushSize(Number(e.target.value))}
-          style={{ marginLeft: 10 }}
+          style={{ cursor: "pointer" }}
         />
 
+        {/* Eraser Toggle */}
         <button
           onClick={() => setIsEraser(!isEraser)}
-          style={{ marginLeft: 10 }}
+          style={{
+            ...btnStyle,
+            background: isEraser ? "rgba(255,255,255,0.2)" : "transparent",
+          }}
         >
-          {isEraser ? "Pen" : "Eraser"}
+          {isEraser ? "✏️" : "🩹"}
         </button>
       </div>
 
-      {/* Canvas */}
+      {/* 🎨 CANVAS */}
       <canvas
         ref={canvasRef}
         style={{
           display: "block",
-          backgroundColor: "white",
-          touchAction: "none", // 🔥 important for mobile
+          backgroundColor: "#f9fafb", // Figma-like background
+          touchAction: "none",
         }}
         onMouseDown={startDrawing}
         onMouseUp={stopDrawing}
@@ -167,12 +192,23 @@ const Canvas = ({ roomId }) => {
         onTouchStart={(e) => startDrawing(e.touches[0])}
         onTouchEnd={stopDrawing}
         onTouchMove={(e) => {
-          e.preventDefault(); // 🔥 prevents scroll
+          e.preventDefault();
           draw(e.touches[0]);
         }}
       />
     </>
   );
+};
+
+// 🔥 Button style
+const btnStyle = {
+  border: "none",
+  background: "transparent",
+  color: "white",
+  fontSize: "18px",
+  cursor: "pointer",
+  padding: "6px 10px",
+  borderRadius: "8px",
 };
 
 export default Canvas;
