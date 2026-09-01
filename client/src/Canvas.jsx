@@ -148,9 +148,9 @@ const Canvas = ({ roomId }) => {
        LOAD BOARD
     ========================= */
 
-    socket.on(
-  "loadBoard",
-  (strokes) => {
+    socket.on("loadBoard", (strokes) => {
+    console.log("📥 BOARD UPDATED:", strokes.length);
+
     strokesRef.current = [...strokes];
 
     const canvas = canvasRef.current;
@@ -158,16 +158,12 @@ const Canvas = ({ roomId }) => {
 
     if (!canvas || !ctx) return;
 
-    ctx.clearRect(
-      0,
-      0,
-      canvas.width,
-      canvas.height
-    );
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    strokes.forEach(drawStroke);
-  }
- );
+    strokesRef.current.forEach((stroke) => {
+      drawStroke(stroke);
+    });
+  });
 
     /* =========================
        RECEIVE DRAWING
