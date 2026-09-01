@@ -4,37 +4,61 @@ const { Server } = require("socket.io");
 const cors = require("cors");
 
 const app = express();
-app.use(cors());
+
+/* =========================
+   CORS
+========================= */
+
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://localhost:5173",
+  "https://whiteboard-app-psi-ten.vercel.app",
+];
+
+app.use(
+  cors({
+    origin: allowedOrigins,
+    credentials: true,
+  })
+);
+
+/* =========================
+   HTTP SERVER
+========================= */
 
 const server = http.createServer(app);
 
+/* =========================
+   SOCKET.IO
+========================= */
+
 const io = new Server(server, {
   cors: {
-    origin: [
-      "http://localhost:3000",
-      "https://whiteboard-app-psi-ten.vercel.app",
-    ],
+    origin: allowedOrigins,
+    methods: ["GET", "POST"],
+    credentials: true,
   },
+
+  transports: ["polling", "websocket"],
 });
 
-// =========================
-// ROOM STORAGE
-// =========================
+/* =========================
+   ROOM STORAGE
+========================= */
 
-let rooms = {};
+const rooms = {};
+const redoRooms = {};
 
-let redoRooms = {};
-
-// =========================
-// SOCKET CONNECTION
-// =========================
+/* =========================
+   SOCKET CONNECTION
+========================= */
 
 io.on("connection", (socket) => {
   console.log("🔌 User connected:", socket.id);
 
-  // =========================
-  // JOIN ROOM
-  // =========================
+  /* =========================
+     JOIN ROOM
+  ========================= */
 
   socket.on("joinRoom", (roomId) => {
     console.log(
@@ -60,9 +84,9 @@ io.on("connection", (socket) => {
     );
   });
 
-  // =========================
-  // DRAW
-  // =========================
+  /* =========================
+     DRAW
+  ========================= */
 
   socket.on(
     "draw",
@@ -84,18 +108,19 @@ io.on("connection", (socket) => {
 
       rooms[roomId].push(stroke);
 
-      // New drawing clears redo history
+      // New drawing invalidates redo history
       redoRooms[roomId] = [];
 
+      // Send drawing to other users
       socket
         .to(roomId)
         .emit("draw", stroke);
     }
   );
 
-  // =========================
-  // UNDO
-  // =========================
+  /* =========================
+     UNDO
+  ========================= */
 
   socket.on("undo", (roomId) => {
     console.log(
@@ -106,6 +131,7 @@ io.on("connection", (socket) => {
     );
 
     if (!rooms[roomId]) {
+      console.log("⚠️ Room does not exist");
       return;
     }
 
@@ -114,6 +140,7 @@ io.on("connection", (socket) => {
     }
 
     if (rooms[roomId].length === 0) {
+      console.log("⚠️ Nothing to undo");
       return;
     }
 
@@ -124,15 +151,22 @@ io.on("connection", (socket) => {
       removedStroke
     );
 
-    io.to(roomId).emit(
-      "loadBoard",
-      rooms[roomId]
+    console.log(
+      "↶ Undo successful. Remaining strokes:",
+      rooms[roomId].length
     );
+
+    io
+      .to(roomId)
+      .emit(
+        "loadBoard",
+        rooms[roomId]
+      );
   });
 
-  // =========================
-  // REDO
-  // =========================
+  /* =========================
+     REDO
+  ========================= */
 
   socket.on("redo", (roomId) => {
     console.log(
@@ -143,12 +177,12 @@ io.on("connection", (socket) => {
     );
 
     if (!redoRooms[roomId]) {
+      console.log("⚠️ No redo history");
       return;
     }
 
-    if (
-      redoRooms[roomId].length === 0
-    ) {
+    if (redoRooms[roomId].length === 0) {
+      console.log("⚠️ Nothing to redo");
       return;
     }
 
@@ -163,15 +197,22 @@ io.on("connection", (socket) => {
       restoredStroke
     );
 
-    io.to(roomId).emit(
-      "loadBoard",
-      rooms[roomId]
+    console.log(
+      "↷ Redo successful. Total strokes:",
+      rooms[roomId].length
     );
+
+    io
+      .to(roomId)
+      .emit(
+        "loadBoard",
+        rooms[roomId]
+      );
   });
 
-  // =========================
-  // CLEAR BOARD
-  // =========================
+  /* =========================
+     CLEAR BOARD
+  ========================= */
 
   socket.on("clear", (roomId) => {
     console.log(
@@ -182,12 +223,14 @@ io.on("connection", (socket) => {
     rooms[roomId] = [];
     redoRooms[roomId] = [];
 
-    io.to(roomId).emit("clear");
+    io
+      .to(roomId)
+      .emit("clear");
   });
 
-  // =========================
-  // LOAD BOARD
-  // =========================
+  /* =========================
+     GET BOARD
+  ========================= */
 
   socket.on("getBoard", (roomId) => {
     console.log(
@@ -205,21 +248,23 @@ io.on("connection", (socket) => {
     );
   });
 
-  // =========================
-  // DISCONNECT
-  // =========================
+  /* =========================
+     DISCONNECT
+  ========================= */
 
-  socket.on("disconnect", () => {
+  socket.on("disconnect", (reason) => {
     console.log(
       "❌ User disconnected:",
-      socket.id
+      socket.id,
+      "reason:",
+      reason
     );
   });
 });
 
-// =========================
-// ROOT ROUTE
-// =========================
+/* =========================
+   ROOT ROUTE
+========================= */
 
 app.get("/", (req, res) => {
   res.send(
@@ -227,9 +272,9 @@ app.get("/", (req, res) => {
   );
 });
 
-// =========================
-// SERVER
-// =========================
+/* =========================
+   SERVER
+========================= */
 
 const PORT =
   process.env.PORT || 5000;

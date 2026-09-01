@@ -13,10 +13,7 @@ const Canvas = ({ roomId }) => {
   const canvasRef = useRef(null);
   const ctxRef = useRef(null);
 
-  // All completed strokes
   const strokesRef = useRef([]);
-
-  // Current stroke being drawn
   const currentStrokeRef = useRef(null);
 
   const [drawing, setDrawing] = useState(false);
@@ -25,7 +22,7 @@ const Canvas = ({ roomId }) => {
   const [isEraser, setIsEraser] = useState(false);
 
   /* =========================
-     DRAW COMPLETE STROKE
+     DRAW STROKE
   ========================= */
 
   const drawStroke = (stroke) => {
@@ -87,9 +84,9 @@ const Canvas = ({ roomId }) => {
       canvas.height
     );
 
-    strokesRef.current.forEach(
-      drawStroke
-    );
+    strokesRef.current.forEach((stroke) => {
+      drawStroke(stroke);
+    });
   };
 
   /* =========================
@@ -98,6 +95,10 @@ const Canvas = ({ roomId }) => {
 
   const getCoords = (e) => {
     const canvas = canvasRef.current;
+
+    if (!canvas) {
+      return { x: 0, y: 0 };
+    }
 
     const rect =
       canvas.getBoundingClientRect();
@@ -114,106 +115,137 @@ const Canvas = ({ roomId }) => {
   };
 
   /* =========================
-     CANVAS + SOCKET SETUP
+     CANVAS + SOCKET
   ========================= */
 
   useEffect(() => {
     const canvas = canvasRef.current;
 
-    if (!canvas) return;
+    if (!canvas || !roomId) return;
 
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+    const setupCanvas = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
 
-    const ctx = canvas.getContext("2d");
+      const ctx = canvas.getContext("2d");
 
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
 
-    ctxRef.current = ctx;
+      ctxRef.current = ctx;
 
-    if (!roomId) return;
+      redrawBoard();
+    };
 
-    console.log(
-      "Joining room:",
-      roomId
-    );
-
-    socket.emit(
-      "joinRoom",
-      roomId
-    );
+    setupCanvas();
 
     /* =========================
        LOAD BOARD
     ========================= */
 
-    socket.on("loadBoard", (strokes) => {
-    console.log("🔥 LOADBOARD EVENT RECEIVED", strokes);
-    console.log("📥 BOARD UPDATED:", strokes.length);
+    const handleLoadBoard = (strokes) => {
+      console.log(
+        "📥 BOARD UPDATED:",
+        strokes.length
+      );
 
-    strokesRef.current = [...strokes];
+      strokesRef.current = [...strokes];
 
-    const canvas = canvasRef.current;
-    const ctx = ctxRef.current;
-
-    if (!canvas || !ctx) return;
-
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    strokesRef.current.forEach((stroke) => {
-      drawStroke(stroke);
-    });
-  });
+      redrawBoard();
+    };
 
     /* =========================
-       RECEIVE DRAWING
+       RECEIVE DRAW
     ========================= */
 
-    socket.on(
-      "draw",
-      (stroke) => {
-        strokesRef.current.push(
-          stroke
-        );
+    const handleDraw = (stroke) => {
+      strokesRef.current.push(stroke);
 
-        drawStroke(stroke);
-      }
-    );
+      drawStroke(stroke);
+    };
 
     /* =========================
        RECEIVE CLEAR
     ========================= */
 
+    const handleClear = () => {
+      console.log("🧹 BOARD CLEARED");
+
+      strokesRef.current = [];
+
+      redrawBoard();
+    };
+
+    /* =========================
+       SOCKET CONNECT
+    ========================= */
+
+    const handleConnect = () => {
+      console.log(
+        "🔌 SOCKET CONNECTED:",
+        socket.id
+      );
+
+      console.log(
+        "Joining room:",
+        roomId
+      );
+
+      socket.emit(
+        "joinRoom",
+        roomId
+      );
+
+      /*
+        Request latest board again.
+        Important after mobile tab switching
+        or reconnecting.
+      */
+
+      socket.emit(
+        "getBoard",
+        roomId
+      );
+    };
+
+    /* =========================
+       REGISTER LISTENERS FIRST
+    ========================= */
+
+    socket.on(
+      "loadBoard",
+      handleLoadBoard
+    );
+
+    socket.on(
+      "draw",
+      handleDraw
+    );
+
     socket.on(
       "clear",
-      () => {
-        strokesRef.current = [];
-
-        redrawBoard();
-      }
+      handleClear
     );
+
+    socket.on(
+      "connect",
+      handleConnect
+    );
+
+    /* =========================
+       JOIN CURRENT ROOM
+    ========================= */
+
+    if (socket.connected) {
+      handleConnect();
+    }
 
     /* =========================
        RESIZE
     ========================= */
 
     const handleResize = () => {
-      canvas.width =
-        window.innerWidth;
-
-      canvas.height =
-        window.innerHeight;
-
-      const newCtx =
-        canvas.getContext("2d");
-
-      newCtx.lineCap = "round";
-      newCtx.lineJoin = "round";
-
-      ctxRef.current = newCtx;
-
-      redrawBoard();
+      setupCanvas();
     };
 
     window.addEventListener(
@@ -221,10 +253,30 @@ const Canvas = ({ roomId }) => {
       handleResize
     );
 
+    /* =========================
+       CLEANUP
+    ========================= */
+
     return () => {
-      socket.off("draw");
-      socket.off("loadBoard");
-      socket.off("clear");
+      socket.off(
+        "loadBoard",
+        handleLoadBoard
+      );
+
+      socket.off(
+        "draw",
+        handleDraw
+      );
+
+      socket.off(
+        "clear",
+        handleClear
+      );
+
+      socket.off(
+        "connect",
+        handleConnect
+      );
 
       window.removeEventListener(
         "resize",
@@ -238,8 +290,7 @@ const Canvas = ({ roomId }) => {
   ========================= */
 
   const startDrawing = (e) => {
-    const { x, y } =
-      getCoords(e);
+    const { x, y } = getCoords(e);
 
     const strokeColor = isEraser
       ? "#f9fafb"
@@ -275,8 +326,7 @@ const Canvas = ({ roomId }) => {
 
     if (!currentStroke) return;
 
-    const { x, y } =
-      getCoords(e);
+    const { x, y } = getCoords(e);
 
     const points =
       currentStroke.points;
@@ -284,7 +334,6 @@ const Canvas = ({ roomId }) => {
     const previousPoint =
       points[points.length - 1];
 
-    // Add new point
     points.push({
       x,
       y,
@@ -294,8 +343,6 @@ const Canvas = ({ roomId }) => {
     const canvas = canvasRef.current;
 
     if (!ctx || !canvas) return;
-
-    /* Draw only the newest segment */
 
     ctx.strokeStyle =
       currentStroke.color;
@@ -359,19 +406,9 @@ const Canvas = ({ roomId }) => {
       return;
     }
 
-    /*
-      Store ONE complete drawing
-      as ONE stroke.
-    */
-
     strokesRef.current.push(
       completedStroke
     );
-
-    /*
-      Send ONE complete stroke
-      to the server.
-    */
 
     socket.emit("draw", {
       roomId,
@@ -384,15 +421,17 @@ const Canvas = ({ roomId }) => {
   ========================= */
 
   const undo = () => {
-  console.log("UNDO BUTTON CLICKED", roomId);
+    if (!roomId) return;
 
-  if (!roomId) {
-    console.log("NO ROOM ID");
-    return;
-  }
+    console.log(
+      "↶ UNDO:",
+      roomId
+    );
 
-  socket.emit("undo", roomId);
-  console.log("UNDO SENT TO SERVER");
+    socket.emit(
+      "undo",
+      roomId
+    );
   };
 
   /* =========================
@@ -400,19 +439,21 @@ const Canvas = ({ roomId }) => {
   ========================= */
 
   const redo = () => {
-  console.log("REDO BUTTON CLICKED", roomId);
+    if (!roomId) return;
 
-  if (!roomId) {
-    console.log("NO ROOM ID");
-    return;
-  }
+    console.log(
+      "↷ REDO:",
+      roomId
+    );
 
-  socket.emit("redo", roomId);
-  console.log("REDO SENT TO SERVER");
-  };  
+    socket.emit(
+      "redo",
+      roomId
+    );
+  };
 
   /* =========================
-     CLEAR BOARD
+     CLEAR
   ========================= */
 
   const clearBoard = () => {
@@ -452,9 +493,7 @@ const Canvas = ({ roomId }) => {
   return (
     <div className="whiteboard">
 
-      {/* =========================
-          TOP NAVIGATION
-      ========================= */}
+      {/* TOP BAR */}
 
       <header className="topbar">
 
@@ -501,13 +540,11 @@ const Canvas = ({ roomId }) => {
 
       </header>
 
-      {/* =========================
-          TOOLBAR
-      ========================= */}
+      {/* TOOLBAR */}
 
       <div className="toolbar">
 
-        {/* Pen */}
+        {/* PEN */}
 
         <button
           className={
@@ -526,7 +563,7 @@ const Canvas = ({ roomId }) => {
           />
         </button>
 
-        {/* Eraser */}
+        {/* ERASER */}
 
         <button
           className={
@@ -547,7 +584,7 @@ const Canvas = ({ roomId }) => {
 
         <div className="toolbar-divider" />
 
-        {/* Color */}
+        {/* COLOR */}
 
         <label
           className="color-control"
@@ -556,8 +593,7 @@ const Canvas = ({ roomId }) => {
           <span
             className="color-preview"
             style={{
-              backgroundColor:
-                color,
+              backgroundColor: color,
             }}
           />
 
@@ -574,7 +610,7 @@ const Canvas = ({ roomId }) => {
           />
         </label>
 
-        {/* Brush Size */}
+        {/* BRUSH SIZE */}
 
         <div className="size-control">
 
@@ -604,7 +640,7 @@ const Canvas = ({ roomId }) => {
 
         <div className="toolbar-divider" />
 
-        {/* Undo */}
+        {/* UNDO */}
 
         <button
           className="tool-btn"
@@ -617,7 +653,7 @@ const Canvas = ({ roomId }) => {
           />
         </button>
 
-        {/* Redo */}
+        {/* REDO */}
 
         <button
           className="tool-btn"
@@ -632,7 +668,7 @@ const Canvas = ({ roomId }) => {
 
         <div className="toolbar-divider" />
 
-        {/* Clear */}
+        {/* CLEAR */}
 
         <button
           className="tool-btn clear-btn"
@@ -647,9 +683,7 @@ const Canvas = ({ roomId }) => {
 
       </div>
 
-      {/* =========================
-          CONNECTION STATUS
-      ========================= */}
+      {/* CONNECTION */}
 
       <div className="connection-status">
 
@@ -659,9 +693,7 @@ const Canvas = ({ roomId }) => {
 
       </div>
 
-      {/* =========================
-          CANVAS
-      ========================= */}
+      {/* CANVAS */}
 
       <canvas
         ref={canvasRef}

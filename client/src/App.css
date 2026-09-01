@@ -137,7 +137,7 @@ body {
   justify-content: center;
   gap: 6px;
 
-  
+
   border: none;
   border-radius: 9px;
 
@@ -496,9 +496,24 @@ body {
     font-size: 17px;
   }
 
-  .size-control {
-    display: none;
-  }
+.size-control {
+  display: flex;
+  gap: 5px;
+  padding: 0 4px;
+}
+
+.size-control .size-label {
+  display: none;
+}
+
+.size-control input {
+  width: 60px;
+}
+
+.size-value {
+  min-width: 30px;
+  font-size: 10px;
+}
 
   .toolbar-divider {
     height: 25px;
