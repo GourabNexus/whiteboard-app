@@ -47,24 +47,37 @@ const Canvas = ({ roomId }) => {
     };
   }, [roomId]);
 
-  const drawStroke = ({ x0, y0, x1, y1, color, size }) => {
-    const ctx = ctxRef.current;
-    ctx.strokeStyle = color || "#000000";
-    ctx.lineWidth = size || 3;
+  const drawStroke = ({ x0, y0, x1, y1, color, size, normalized }) => {
+  const ctx = ctxRef.current;
+  const canvas = canvasRef.current;
 
-    ctx.beginPath();
-    ctx.moveTo(x0, y0);
-    ctx.lineTo(x1, y1);
-    ctx.stroke();
-    ctx.closePath();
+  ctx.strokeStyle = color || "#000000";
+  ctx.lineWidth = size || 3;
+
+  // Convert normalized coordinates back to
+  // the current device's canvas coordinates.
+  const startX = normalized ? x0 * canvas.width : x0;
+  const startY = normalized ? y0 * canvas.height : y0;
+  const endX = normalized ? x1 * canvas.width : x1;
+  const endY = normalized ? y1 * canvas.height : y1;
+
+  ctx.beginPath();
+  ctx.moveTo(startX, startY);
+  ctx.lineTo(endX, endY);
+  ctx.stroke();
+  ctx.closePath();
   };
 
   const getCoords = (e) => {
-    const rect = canvasRef.current.getBoundingClientRect();
-    return {
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
-    };
+  const rect = canvasRef.current.getBoundingClientRect();
+
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+
+  return {
+    x: x / rect.width,
+    y: y / rect.height,
+   };
   };
 
   const startDrawing = (e) => {
@@ -82,38 +95,39 @@ const Canvas = ({ roomId }) => {
   };
 
   const draw = (e) => {
-    if (!drawing) return;
+  if (!drawing) return;
 
-    const { x, y } = getCoords(e);
-    const ctx = ctxRef.current;
+  const { x, y } = getCoords(e);
+  const ctx = ctxRef.current;
 
-    if (ctx.currentX == null || ctx.currentY == null) {
-      ctx.currentX = x;
-      ctx.currentY = y;
-      return;
-    }
-
-    const strokeColor = isEraser ? "#ffffff" : color;
-
-    const stroke = {
-      x0: ctx.currentX,
-      y0: ctx.currentY,
-      x1: x,
-      y1: y,
-      color: strokeColor,
-      size: Number(brushSize),
-    };
-
-    drawStroke(stroke);
-
-    if (Date.now() - lastEmitRef.current > 10) {
-      socket.emit("draw", { roomId, stroke });
-      lastEmitRef.current = Date.now();
-    }
-
+  if (ctx.currentX == null || ctx.currentY == null) {
     ctx.currentX = x;
     ctx.currentY = y;
+    return;
+  }
+
+  const strokeColor = isEraser ? "#ffffff" : color;
+
+  const stroke = {
+    x0: ctx.currentX,
+    y0: ctx.currentY,
+    x1: x,
+    y1: y,
+    color: strokeColor,
+    size: Number(brushSize),
+    normalized: true,
   };
+
+  drawStroke(stroke);
+
+  if (Date.now() - lastEmitRef.current > 10) {
+    socket.emit("draw", { roomId, stroke });
+    lastEmitRef.current = Date.now();
+  }
+
+  ctx.currentX = x;
+  ctx.currentY = y;
+ };
 
   const clearBoard = () => {
     socket.emit("clear", roomId);
