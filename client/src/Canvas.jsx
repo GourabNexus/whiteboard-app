@@ -149,13 +149,25 @@ const Canvas = ({ roomId }) => {
     ========================= */
 
     socket.on(
-      "loadBoard",
-      (strokes) => {
-        strokesRef.current = strokes;
+  "loadBoard",
+  (strokes) => {
+    strokesRef.current = [...strokes];
 
-        redrawBoard();
-      }
+    const canvas = canvasRef.current;
+    const ctx = ctxRef.current;
+
+    if (!canvas || !ctx) return;
+
+    ctx.clearRect(
+      0,
+      0,
+      canvas.width,
+      canvas.height
     );
+
+    strokes.forEach(drawStroke);
+  }
+ );
 
     /* =========================
        RECEIVE DRAWING
