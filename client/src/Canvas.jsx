@@ -149,6 +149,7 @@ const Canvas = ({ roomId }) => {
     ========================= */
 
     socket.on("loadBoard", (strokes) => {
+    console.log("🔥 LOADBOARD EVENT RECEIVED", strokes);
     console.log("📥 BOARD UPDATED:", strokes.length);
 
     strokesRef.current = [...strokes];
