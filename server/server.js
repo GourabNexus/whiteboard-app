@@ -10,8 +10,8 @@ const app = express();
 ========================= */
 
 const allowedOrigins = [
-  "http://localhost:3000",
   "http://localhost:5173",
+  "http://localhost:3000",
   "https://whiteboard-app-psi-ten.vercel.app",
 ];
 
@@ -38,8 +38,6 @@ const io = new Server(server, {
     methods: ["GET", "POST"],
     credentials: true,
   },
-
-  transports: ["polling", "websocket"],
 });
 
 /* =========================
@@ -108,10 +106,9 @@ io.on("connection", (socket) => {
 
       rooms[roomId].push(stroke);
 
-      // New drawing invalidates redo history
+      // New drawing clears redo history
       redoRooms[roomId] = [];
 
-      // Send drawing to other users
       socket
         .to(roomId)
         .emit("draw", stroke);
@@ -131,7 +128,6 @@ io.on("connection", (socket) => {
     );
 
     if (!rooms[roomId]) {
-      console.log("⚠️ Room does not exist");
       return;
     }
 
@@ -140,7 +136,7 @@ io.on("connection", (socket) => {
     }
 
     if (rooms[roomId].length === 0) {
-      console.log("⚠️ Nothing to undo");
+      console.log("⚠️ NOTHING TO UNDO");
       return;
     }
 
@@ -152,16 +148,14 @@ io.on("connection", (socket) => {
     );
 
     console.log(
-      "↶ Undo successful. Remaining strokes:",
+      "↶ UNDO SUCCESS. Remaining:",
       rooms[roomId].length
     );
 
-    io
-      .to(roomId)
-      .emit(
-        "loadBoard",
-        rooms[roomId]
-      );
+    io.to(roomId).emit(
+      "loadBoard",
+      rooms[roomId]
+    );
   });
 
   /* =========================
@@ -177,12 +171,11 @@ io.on("connection", (socket) => {
     );
 
     if (!redoRooms[roomId]) {
-      console.log("⚠️ No redo history");
       return;
     }
 
     if (redoRooms[roomId].length === 0) {
-      console.log("⚠️ Nothing to redo");
+      console.log("⚠️ NOTHING TO REDO");
       return;
     }
 
@@ -198,16 +191,14 @@ io.on("connection", (socket) => {
     );
 
     console.log(
-      "↷ Redo successful. Total strokes:",
+      "↷ REDO SUCCESS. Total:",
       rooms[roomId].length
     );
 
-    io
-      .to(roomId)
-      .emit(
-        "loadBoard",
-        rooms[roomId]
-      );
+    io.to(roomId).emit(
+      "loadBoard",
+      rooms[roomId]
+    );
   });
 
   /* =========================
@@ -217,15 +208,15 @@ io.on("connection", (socket) => {
   socket.on("clear", (roomId) => {
     console.log(
       "🧹 CLEAR:",
+      socket.id,
+      "room:",
       roomId
     );
 
     rooms[roomId] = [];
     redoRooms[roomId] = [];
 
-    io
-      .to(roomId)
-      .emit("clear");
+    io.to(roomId).emit("clear");
   });
 
   /* =========================
@@ -252,12 +243,10 @@ io.on("connection", (socket) => {
      DISCONNECT
   ========================= */
 
-  socket.on("disconnect", (reason) => {
+  socket.on("disconnect", () => {
     console.log(
       "❌ User disconnected:",
-      socket.id,
-      "reason:",
-      reason
+      socket.id
     );
   });
 });
