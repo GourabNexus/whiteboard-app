@@ -1,4 +1,5 @@
 import Canvas from "./Canvas";
+import "./App.css";
 
 function App() {
   // Get roomId from URL manually
